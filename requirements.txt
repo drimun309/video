@@ -1,0 +1,26 @@
+# Основные зависимости для видеоналитики
+ultralytics>=8.0.0
+torch>=1.13.0
+torchvision>=0.14.0
+opencv-python>=4.8.0
+numpy>=1.21.0
+PyQt6>=6.4.0
+facenet-pytorch>=2.5.0
+
+# Зависимости для BoxMOT/StrongSORT
+scipy>=1.9.0
+scikit-learn>=1.1.0
+filterpy>=1.4.5
+lap>=0.4.0
+Cython>=0.29.0
+Pillow>=9.0.0
+requests>=2.28.0
+
+# Дополнительные зависимости
+sqlite3
+datetime
+logging
+base64
+traceback
+concurrent.futures
+pathlib 

@@ -1,0 +1,11 @@
+ __pycache__/ 
+ *.db 
+ *.rar 
+ .env 
+ .idea/ 
+*.jpg/
+snapshots/
+recordings/
+*.pyc
+Yolov5_StrongSORT_OSNet/
+.vscode/

@@ -53,7 +53,7 @@ MODEL_PATHS = {
 # === StrongSORT Tracking настройки ===
 TRACKING_ENABLED = True
 TRACKING_METHOD = "strongsort"  # strongsort, botsort, deepocsort, ocsort, bytetrack
-REID_MODEL_PATH = "osnet_x1_0_market1501.pt"  # Путь к ReID модели
+REID_MODEL_PATH = "osnet_ibn_x1_0_msmt17.pt"  # Путь к ReID модели
 
 # Параметры трекинга
 TRACKING_CONFIG = {

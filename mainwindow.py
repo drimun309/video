@@ -752,15 +752,30 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Ошибка при обновлении базы данных: {e}")
 
+    def pause_camera(self, camera_id):
+        if camera_id in self.active_threads:
+            thread = self.active_threads[camera_id]
+            if hasattr(thread, 'pause'):
+                thread.pause()
+
+    def resume_camera(self, camera_id):
+        if camera_id in self.active_threads:
+            thread = self.active_threads[camera_id]
+            if hasattr(thread, 'resume'):
+                thread.resume()
+
     def toggle_camera_with_icons(self, camera_id, camera_data, people_count_label, toggle_button):
         if toggle_button.isChecked():
             toggle_button.setIcon(QIcon(r"C:\Users\Developer1\Downloads\pause_player.svg"))
             toggle_button.setStyleSheet("background-color: lightgreen;")
-            self.start_camera(camera_id, camera_data, people_count_label)
+            if camera_id in self.active_threads:
+                self.resume_camera(camera_id)
+            else:
+                self.start_camera(camera_id, camera_data, people_count_label)
         else:
             toggle_button.setIcon(QIcon(START_ICON_PATH))
             toggle_button.setStyleSheet("background-color: lightgray;")
-            self.stop_camera(camera_id)
+            self.pause_camera(camera_id)
 
     def start_camera(self, camera_id, camera_data, people_count_label):
         # Если поток уже существует, сначала останавливаем его

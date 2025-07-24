@@ -553,6 +553,7 @@ class CameraThread(QThread):
         self.frame_interval = frame_interval
         self.confidence_threshold = confidence_threshold
         self.running = False
+        self.paused = False
         self.max_people_count = camera_data.get('max_people_count', 0)
         self.hospital_name = camera_data.get('hospital_name', 'Не указано')
         self.roi = None
@@ -664,6 +665,9 @@ class CameraThread(QThread):
                 self.update_cached_roi()
 
             while self.running:
+                if self.paused:
+                    self.msleep(100)
+                    continue
                 if not self.cap.isOpened():
                     self.log_error("Соединение с камерой потеряно", traceback.format_exc())
                     break
@@ -967,6 +971,12 @@ class CameraThread(QThread):
             if self.cap is not None and self.cap.isOpened():
                 self.cap.release()
                 self.cap = None
+
+    def pause(self):
+        self.paused = True
+
+    def resume(self):
+        self.paused = False
 
     def start_video_recording(self):
         """

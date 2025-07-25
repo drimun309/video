@@ -210,8 +210,14 @@ def process_tracking(detections, frame):
     Returns:
         tuple: (tracked_objects, people_count)
     """
+    # Проверяем, есть ли детекции
+    if detections is None or len(detections) == 0 or detections[0].boxes is None:
+        pass  # Нет детекций для обработки
+        return [], 0
+    
+    # Если трекер не инициализирован, возвращаем простую детекцию без трекинга
     if tracker is None:
-        # Если трекер не инициализирован, возвращаем обычную детекцию
+        pass  # Трекер не инициализирован, используем простую детекцию
         people_count = 0
         tracked_objects = []
         
@@ -225,6 +231,7 @@ def process_tracking(detections, frame):
                 tracked_objects.append([x1, y1, x2, y2, -1, score, cls])  # -1 означает отсутствие ID
                 people_count += 1
         
+        pass  # Простая детекция завершена
         return tracked_objects, people_count
     
     try:
@@ -239,9 +246,12 @@ def process_tracking(detections, frame):
             if int(cls) == 0 and score >= DEFAULT_CONFIDENCE_THRESHOLD:
                 dets.append([x1, y1, x2, y2, score, cls])
         
+        pass  # Детекции подготовлены для трекера
+        
         if len(dets) == 0:
             # Обновляем трекер даже если нет детекций
             tracked_objects = tracker.update(np.empty((0, 6)), frame)
+            pass  # Нет детекций выше порога
             return tracked_objects, 0
         
         # Конвертируем в numpy array
@@ -253,22 +263,29 @@ def process_tracking(detections, frame):
         # Подсчитываем количество людей
         people_count = len(tracked_objects) if len(tracked_objects) > 0 else 0
         
+        pass  # Трекинг завершён
         return tracked_objects, people_count
         
     except Exception as e:
-        logger.error(f"Error in tracking: {str(e)}")
-        # Возвращаем обычную детекцию в случае ошибки
+        logger.error(f"Ошибка в трекинге: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        # Возвращаем простую детекцию в случае ошибки трекера
         people_count = 0
         tracked_objects = []
         
+        pass  # Трекер упал, используем простую детекцию
         for det in detections[0].boxes.data:
             if len(det) < 6:
                 continue  # пропускаем некорректную детекцию
-            x1, y1, x2, y2, score, cls = det
+            det_cpu = det.cpu().numpy()
+            x1, y1, x2, y2, score, cls = det_cpu
             if int(cls) == 0 and score >= DEFAULT_CONFIDENCE_THRESHOLD:
                 tracked_objects.append([x1, y1, x2, y2, -1, score, cls])
                 people_count += 1
         
+        pass  # Простая детекция после ошибки завершена
         return tracked_objects, people_count
 
 def process_person_recognition(tracked_objects, frame, camera_name=None, hospital_name=None):

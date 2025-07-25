@@ -184,7 +184,7 @@ class VideoProcessingThread(QThread):
                 self.log_error("Не удалось открыть видео: " + self.video_path, traceback.format_exc())
                 return
             else:
-                print(f"[DEBUG] Видео открыто успешно: {self.video_path}")
+                pass  # Видео открыто успешно
 
             fps = cap.get(cv2.CAP_PROP_FPS)
             fps = fps if fps > 0 else 30
@@ -206,7 +206,7 @@ class VideoProcessingThread(QThread):
 
                     ret, frame = cap.read()
                     if not ret:
-                        print("[DEBUG] Видео закончилось или возникла ошибка при чтении кадра.")
+
                         break
 
                     self.last_frame = frame.copy()
@@ -225,44 +225,14 @@ class VideoProcessingThread(QThread):
                             except Exception as e:
                                 self.log_error("Ошибка инференса", str(e))
                                 continue
-                            # --- ФИЛЬТРАЦИЯ bounding boxes по ROI до трекера ---
-                            if self.roi is not None:
-                                try:
-                                    from helpers import convert_roi_to_polygon
-                                    roi_polygon = convert_roi_to_polygon(self.roi)
-                                    pts = []
-                                    for i in range(roi_polygon.count()):
-                                        pt = roi_polygon.point(i)
-                                        pts.append([pt.x(), pt.y()])
-                                    pts_np = np.array(pts, np.int32)
-                                    def in_poly(x1, y1, x2, y2):
-                                        cx, cy = int((x1 + x2) // 2), int((y1 + y2) // 2)
-                                        return cv2.pointPolygonTest(pts_np, (cx, cy), False) >= 0
-                                    filtered_boxes = []
-                                    for det in results[0].boxes.data:
-                                        if len(det) < 6:
-                                            continue
-                                        det_cpu = det.cpu().numpy()
-                                        x1, y1, x2, y2, score, cls = det_cpu
-                                        if int(cls) == 0 and score >= DEFAULT_CONFIDENCE_THRESHOLD and in_poly(x1, y1, x2, y2):
-                                            filtered_boxes.append(det)
-                                    if filtered_boxes:
-                                        results[0].boxes.data = torch.stack(filtered_boxes)
-                                    else:
-                                        results[0].boxes.data = torch.empty((0,6))
-                                except Exception as e:
-                                    self.log_error("Ошибка фильтрации по ROI до трекера", str(e))
-                            # --- конец фильтрации по ROI до трекера ---
-                            inference_time = time.time() - inference_start
-                            print(f"[DEBUG] Inference time: {inference_time:.2f} sec")
-
-                            # Используем StrongSORT трекинг
+                            
+                            # Процессируем трекинг и идентификацию людей
                             tracked_objects, people_count = process_tracking(results, frame)
                         else:
                             # Если распознавание людей отключено, не выполняем детекцию
                             tracked_objects = []
                             people_count = 0
-                            print("[DEBUG] Распознавание людей отключено, детекция пропущена")
+
                         
                         # Обрабатываем распознавание людей (если включено)
                         if ENABLE_PERSON_RECOGNITION:
@@ -314,17 +284,25 @@ class VideoProcessingThread(QThread):
 
                             # --- ОТРИСОВКА КВАДРАТА И ID ДЛЯ КАЖДОГО ЧЕЛОВЕКА ---
                             for obj in tracked_objects:
-                                if len(obj) >= 7:
-                                    x1, y1, x2, y2, track_id, score, cls = obj[:7]
-                                    face_id = track_to_face.get(track_id)
+                                if len(obj) >= 6:  # Изменили с 7 на 6, чтобы работало и с простой детекцией
+                                    if len(obj) >= 7:
+                                        x1, y1, x2, y2, track_id, score, cls = obj[:7]
+                                    else:
+                                        x1, y1, x2, y2, score, cls = obj[:6]
+                                        track_id = -1  # Нет ID для простой детекции
+                                    
+                                    face_id = track_to_face.get(track_id) if track_id >= 0 else None
                                     if face_id:
                                         face_name = get_face_name(face_id)
                                         if face_name:
                                             label = f"Человек ID: {track_id} | Лицо: {face_id} ({face_name})"
                                         else:
                                             label = f"Человек ID: {track_id} | Лицо: {face_id}"
+                                    elif track_id >= 0:
+                                        label = f"Человек ID: {track_id}"
                                     else:
-                                        label = f"Человек ID: {track_id}" if track_id is not None and track_id >= 0 else "Человек ID: ?"
+                                        label = f"Человек (conf: {score:.2f})"  # Для простой детекции показываем уверенность
+                                    
                                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
                                     frame = draw_text_with_unicode(frame, label, (int(x1), int(y1) - 25), (0, 255, 0), 24)
 
@@ -367,7 +345,7 @@ class VideoProcessingThread(QThread):
                         self.last_frame = frame.copy()
 
                         # Логируем текущие значения
-                        print(f"[DEBUG] Detected people: {people_count}, Max allowed: {self.max_people_count}")
+
 
                         # Если количество людей превышает максимум, выполняем запись и отправку уведомления
                         if self.max_people_count > 0 and people_count > self.max_people_count:
@@ -377,7 +355,7 @@ class VideoProcessingThread(QThread):
                                 # Сохраняем событие превышения в базу данных
                                 event_time_str = time.strftime("%Y%m%d-%H%M%S")
                                 log_video_event(self.video_name, people_count, self.max_people_count, event_time_str)
-                                print(f"[DEBUG] Exceeded event logged at {event_time_str}")
+
                                 
                                 # Кодирование последнего кадра в JPEG и преобразование в base64
                                 ret_enc, buffer = cv2.imencode(".jpg", self.last_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
@@ -759,20 +737,27 @@ class CameraThread(QThread):
                                     track_to_face[best_track] = face_obj['face_id']
                         # --- ОТРИСОВКА КВАДРАТА И ID ДЛЯ КАЖДОГО ЧЕЛОВЕКА ---
                         for obj in tracked_objects:
-                            if len(obj) >= 7:
-                                x1, y1, x2, y2, track_id, score, cls = obj[:7]
-                                face_id = track_to_face.get(track_id)
+                            if len(obj) >= 6:  # Изменили с 7 на 6, чтобы работало и с простой детекцией
+                                if len(obj) >= 7:
+                                    x1, y1, x2, y2, track_id, score, cls = obj[:7]
+                                else:
+                                    x1, y1, x2, y2, score, cls = obj[:6]
+                                    track_id = -1  # Нет ID для простой детекции
+                                
+                                face_id = track_to_face.get(track_id) if track_id >= 0 else None
                                 if face_id:
                                     face_name = get_face_name(face_id)
                                     if face_name:
                                         label = f"Человек ID: {track_id} | Лицо: {face_id} ({face_name})"
                                     else:
                                         label = f"Человек ID: {track_id} | Лицо: {face_id}"
+                                elif track_id >= 0:
+                                    label = f"Человек ID: {track_id}"
                                 else:
-                                    label = f"Человек ID: {track_id}" if track_id is not None and track_id >= 0 else "Человек ID: ?"
+                                    label = f"Человек (conf: {score:.2f})"  # Для простой детекции показываем уверенность
+                                
                                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
                                 frame = draw_text_with_unicode(frame, label, (int(x1), int(y1) - 25), (0, 255, 0), 24)
-                        
                         # Визуализация лиц (если включено распознавание лиц)
                         if ENABLE_FACE_RECOGNITION:
                             for face_obj in face_objects:
@@ -906,7 +891,7 @@ class CameraThread(QThread):
                             self.network_workers.append(worker)
                             worker.finished_signal.connect(lambda result, w=worker: self.network_workers.remove(w))
                             worker.start()
-                            print(f"[DEBUG] Событие превышения для камеры обработано асинхронно в {time.strftime('%Y%m%d-%H%M%S')}")
+        
                             self.exceed_alert_sent = True
                     else:
                         self.exceed_start_time = None
